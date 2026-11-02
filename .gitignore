@@ -1,0 +1,14 @@
+/target
+
+# Personal data: no spreadsheets in the repo, except the samples (fake data).
+*.ods
+*.ods.bak
+*.xlsx
+*.csv
+!examples/*.ods
+.~lock.*#
+
+# Personal working notes
+spec.md
+dev.md
+status.md
