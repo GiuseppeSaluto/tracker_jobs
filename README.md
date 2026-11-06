@@ -1,7 +1,7 @@
 # tracker_jobs
 
-A terminal dashboard (TUI) in Rust for a job-application tracker kept in an `.ods` spreadsheet.
-The `.ods` file is the single source of truth: you edit it in LibreOffice Calc, tracker_jobs **only reads it**.
+A terminal dashboard (TUI) in Rust for a job-application tracker kept in a spreadsheet (`.ods`, `.xlsx`, `.xls`).
+The spreadsheet is the single source of truth: you edit it in LibreOffice Calc or Excel, tracker_jobs **only reads it**.
 
 <!-- screenshot: e.g. `vhs demo.tape` or `asciinema rec` -->
 
@@ -16,6 +16,7 @@ The `.ods` file is the single source of truth: you edit it in LibreOffice Calc, 
 
 ```bash
 cargo run -- examples/sample.ods                # fake data, to try it out
+cargo run -- examples/sample.xlsx               # same data, Excel format
 cargo run --release -- ~/path/to/your_file.ods   # your real file
 ```
 
@@ -49,7 +50,7 @@ Any other column is ignored. An application is *open* unless its status is `Offe
 
 ## Privacy
 
-Real data stays out of the repository: `.gitignore` excludes every `.ods` file except those in `examples/`,
+Real data stays out of the repository: `.gitignore` excludes every spreadsheet except those in `examples/`,
 which only contain made-up companies and contacts. Pass your real file on the command line.
 
 ## Layout
@@ -57,11 +58,12 @@ which only contain made-up companies and contacts. Pass your real file on the co
 ```
 src/
   main.rs   # arguments, event loop
-  data.rs   # .ods reading, Status, parse_date, "to do" logic
+  data.rs   # spreadsheet reading, Status, parse_date, "to do" logic
   ui.rs     # drawing
   tests.rs  # cargo test
 examples/
   sample.ods   # fake data, same structure as the real file
+  sample.xlsx  # the same, in Excel format
 ```
 
 Built with [ratatui](https://ratatui.rs), [calamine](https://github.com/tafia/calamine) and [chrono](https://github.com/chronotope/chrono).

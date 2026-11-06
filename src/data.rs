@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
-use calamine::{Data, DataType, Ods, Reader, open_workbook};
+use calamine::{Data, DataType, Reader, open_workbook_auto};
 use chrono::{Days, NaiveDate};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -99,8 +99,9 @@ pub fn parse_date(cell: &Data) -> Option<NaiveDate> {
 
 /// Reads the `Candidature` sheet. Columns are looked up by header name, not position.
 pub fn load(path: &Path) -> Result<Vec<Application>> {
-    let mut wb: Ods<_> =
-        open_workbook(path).with_context(|| format!("cannot open {}", path.display()))?;
+    // Format chosen from the extension: .ods, .xlsx, .xlsm, .xlsb, .xls.
+    let mut wb =
+        open_workbook_auto(path).with_context(|| format!("cannot open {}", path.display()))?;
     let range = wb
         .worksheet_range("Candidature")
         .context("sheet 'Candidature' not found")?;

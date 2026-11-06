@@ -55,13 +55,15 @@ fn parse_date_from_text() {
 }
 
 #[test]
-fn loads_example_file() {
-    let apps = load("examples/sample.ods".as_ref()).unwrap();
-    assert_eq!(apps.len(), 10);
-    let lumen = apps.iter().find(|a| a.company == "Lumen Sistemi").unwrap();
-    assert_eq!(lumen.status, Status::Sent);
-    assert_eq!(lumen.next_action_date, Some(d("2026-11-20"))); // date stored as text
-    assert_eq!(apps[0].sent_date, Some(d("2026-10-12"))); // real date cell
+fn loads_example_files() {
+    for path in ["examples/sample.ods", "examples/sample.xlsx"] {
+        let apps = load(path.as_ref()).unwrap();
+        assert_eq!(apps.len(), 10, "{path}");
+        let lumen = apps.iter().find(|a| a.company == "Lumen Sistemi").unwrap();
+        assert_eq!(lumen.status, Status::Sent, "{path}");
+        assert_eq!(lumen.next_action_date, Some(d("2026-11-20")), "{path}"); // date stored as text
+        assert_eq!(apps[0].sent_date, Some(d("2026-10-12")), "{path}"); // real date cell
+    }
 }
 
 #[test]

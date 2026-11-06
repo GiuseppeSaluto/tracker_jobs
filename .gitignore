@@ -6,6 +6,7 @@
 *.xlsx
 *.csv
 !examples/*.ods
+!examples/*.xlsx
 .~lock.*#
 
 # Personal working notes
