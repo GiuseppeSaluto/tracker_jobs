@@ -188,6 +188,14 @@ fn default_db() -> PathBuf {
         .join(".local/share/tracker_jobs/tracker.db")
 }
 
+fn is_spreadsheet(path: &str) -> bool {
+    Path::new(path).extension().is_some_and(|e| {
+        ["ods", "xlsx", "xlsm", "xlsb", "xls"]
+            .iter()
+            .any(|x| e.eq_ignore_ascii_case(x))
+    })
+}
+
 fn import(sheet: &Path, db_path: &Path, replace: bool) -> Result<()> {
     let apps = data::load(sheet)?;
     let mut conn = db::open(db_path)?;
@@ -257,6 +265,11 @@ fn main() -> Result<()> {
         }
         [cmd, sheet] if cmd == "import" => import(sheet.as_ref(), &db_path, replace),
         [cmd, out] if cmd == "export" && !replace => export(out.as_ref(), &db_path),
+        // Older versions took the spreadsheet directly: point to the new command.
+        [sheet] if is_spreadsheet(sheet) => bail!(
+            "spreadsheets are now imported into a database, once:\n  \
+             tracker_jobs import {sheet}\nthen open the dashboard with:\n  tracker_jobs"
+        ),
         _ => bail!(USAGE),
     }
 }
