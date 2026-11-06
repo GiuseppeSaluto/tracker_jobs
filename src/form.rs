@@ -1,25 +1,9 @@
 use crossterm::event::KeyCode;
 
-use crate::data::{Application, Status, parse_date_text};
+use crate::data::{Application, ENGLISH, Status, parse_date_text};
 
-/// Field labels, in the same order as the spreadsheet columns.
-pub const LABELS: [&str; 15] = [
-    "Company",
-    "Role",
-    "Sector",
-    "Role type",
-    "Location",
-    "Channel",
-    "Contact",
-    "Sent on",
-    "Status",
-    "Next action",
-    "Next action on",
-    "Salary / terms",
-    "CV used",
-    "Job link",
-    "Notes",
-];
+/// Field labels: the spreadsheet headers, in the same order.
+pub const LABELS: [&str; 15] = ENGLISH.headers;
 pub const STATUS: usize = 8;
 const SENT_DATE: usize = 7;
 const NEXT_DATE: usize = 10;

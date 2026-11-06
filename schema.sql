@@ -1,5 +1,5 @@
 -- Database schema, embedded in the binary (src/db.rs) and run every time the database is opened.
--- Dates are ISO text (YYYY-MM-DD); status holds the spreadsheet value (e.g. 'In selezione').
+-- Dates are ISO text (YYYY-MM-DD); status holds the status name (e.g. 'In selection').
 
 CREATE TABLE IF NOT EXISTS applications (
     id               INTEGER PRIMARY KEY,

@@ -35,43 +35,26 @@ impl Status {
         !matches!(self, Status::Offer | Status::Rejected | Status::Withdrawn)
     }
 
-    /// Value used in the spreadsheet dropdown (Italian). Also how it's stored in the database.
-    pub fn sheet_value(&self) -> &str {
-        match self {
-            Status::ToSend => "Da inviare",
-            Status::Sent => "Inviata",
-            Status::InSelection => "In selezione",
-            Status::Interview => "Colloquio",
-            Status::Offer => "Offerta",
-            Status::Rejected => "Rifiutata",
-            Status::Withdrawn => "Ritirata",
-            Status::NoResponse => "Nessuna risposta",
-            Status::Unknown(s) => s,
-        }
-    }
-
-    /// Name shown in the UI.
+    /// Canonical name: shown in the UI, stored in the database, written on export.
     pub fn name(&self) -> &str {
         match self {
-            Status::ToSend => "To send",
-            Status::Sent => "Sent",
-            Status::InSelection => "In selection",
-            Status::Interview => "Interview",
-            Status::Offer => "Offer",
-            Status::Rejected => "Rejected",
-            Status::Withdrawn => "Withdrawn",
-            Status::NoResponse => "No response",
             Status::Unknown(s) => s,
+            known => {
+                let i = Status::ALL.iter().position(|s| s == known);
+                ENGLISH.statuses[i.expect("ALL lists every known status")]
+            }
         }
     }
 }
 
+/// Recognizes a status written in any of `LANGUAGES`, ignoring case.
 impl From<&str> for Status {
     fn from(s: &str) -> Self {
         let s = s.trim();
-        Status::ALL
-            .into_iter()
-            .find(|st| st.sheet_value().eq_ignore_ascii_case(s))
+        LANGUAGES
+            .iter()
+            .find_map(|l| l.statuses.iter().position(|v| v.eq_ignore_ascii_case(s)))
+            .map(|i| Status::ALL[i].clone())
             .unwrap_or_else(|| Status::Unknown(s.to_string()))
     }
 }
@@ -97,24 +80,80 @@ pub struct Application {
     pub notes: String,
 }
 
-/// Spreadsheet headers (Italian), in the order they are exported.
-pub const HEADERS: [&str; 15] = [
-    "Azienda",
-    "Ruolo",
-    "Settore",
-    "Tipo ruolo",
-    "Sede",
-    "Canale",
-    "Referente",
-    "Data invio",
-    "Stato",
-    "Prossima azione",
-    "Data prossima azione",
-    "RAL / condizioni",
-    "CV usato",
-    "Link annuncio",
-    "Note",
-];
+/// Spreadsheet words of one language.
+pub struct Language {
+    pub sheet: &'static str,
+    /// One per `Application` field, in export order.
+    pub headers: [&'static str; 15],
+    /// Same order as `Status::ALL`.
+    pub statuses: [&'static str; 8],
+}
+
+/// Languages recognized on import. To support a new one, add its table here.
+pub const LANGUAGES: [Language; 2] = [ENGLISH, ITALIAN];
+
+/// Canonical language: UI, database and export.
+pub const ENGLISH: Language = Language {
+    sheet: "Applications",
+    headers: [
+        "Company",
+        "Role",
+        "Sector",
+        "Role type",
+        "Location",
+        "Channel",
+        "Contact",
+        "Sent on",
+        "Status",
+        "Next action",
+        "Next action on",
+        "Salary / terms",
+        "CV used",
+        "Job link",
+        "Notes",
+    ],
+    statuses: [
+        "To send",
+        "Sent",
+        "In selection",
+        "Interview",
+        "Offer",
+        "Rejected",
+        "Withdrawn",
+        "No response",
+    ],
+};
+
+const ITALIAN: Language = Language {
+    sheet: "Candidature",
+    headers: [
+        "Azienda",
+        "Ruolo",
+        "Settore",
+        "Tipo ruolo",
+        "Sede",
+        "Canale",
+        "Referente",
+        "Data invio",
+        "Stato",
+        "Prossima azione",
+        "Data prossima azione",
+        "RAL / condizioni",
+        "CV usato",
+        "Link annuncio",
+        "Note",
+    ],
+    statuses: [
+        "Da inviare",
+        "Inviata",
+        "In selezione",
+        "Colloquio",
+        "Offerta",
+        "Rifiutata",
+        "Ritirata",
+        "Nessuna risposta",
+    ],
+};
 
 /// Text dates: ISO (`2026-11-06`) or Italian (`06/11/2026`).
 pub fn parse_date_text(s: &str) -> Option<NaiveDate> {
@@ -130,19 +169,24 @@ pub fn parse_date(cell: &Data) -> Option<NaiveDate> {
         .or_else(|| parse_date_text(cell.get_string()?))
 }
 
-/// Reads the `Candidature` sheet. Columns are looked up by header name, not position.
+/// Reads the applications sheet. Sheet and columns are looked up by name in any of
+/// `LANGUAGES` (each column on its own), not by position.
 pub fn load(path: &Path) -> Result<Vec<Application>> {
     // Format chosen from the extension: .ods, .xlsx, .xlsm, .xlsb, .xls.
     let mut wb =
         open_workbook_auto(path).with_context(|| format!("cannot open {}", path.display()))?;
-    let range = wb
-        .worksheet_range("Candidature")
-        .context("sheet 'Candidature' not found")?;
+    let names = |pick: fn(&Language) -> &'static str| LANGUAGES.map(|l| pick(&l)).join("' or '");
+    let range = LANGUAGES
+        .iter()
+        .find_map(|l| wb.worksheet_range(l.sheet).ok())
+        .with_context(|| format!("no sheet named '{}'", names(|l| l.sheet)))?;
     let mut rows = range.rows();
     let Some(headers) = rows.next() else {
-        bail!("sheet 'Candidature' is empty");
+        bail!("the applications sheet is empty");
     };
     let col = |name: &str| headers.iter().position(|c| c.to_string().trim() == name);
+    let cols: [Option<usize>; 15] =
+        std::array::from_fn(|i| LANGUAGES.iter().find_map(|l| col(l.headers[i])));
     let [
         company,
         role,
@@ -159,9 +203,9 @@ pub fn load(path: &Path) -> Result<Vec<Application>> {
         cv,
         link,
         notes,
-    ] = HEADERS.map(col);
+    ] = cols;
     if company.is_none() {
-        bail!("column 'Azienda' not found");
+        bail!("column '{}' not found", names(|l| l.headers[0]));
     }
 
     Ok(rows
@@ -196,10 +240,10 @@ pub fn load(path: &Path) -> Result<Vec<Application>> {
 pub fn export(path: &Path, apps: &[Application]) -> Result<()> {
     let mut wb = Workbook::new();
     let ws = wb.add_worksheet();
-    ws.set_name("Candidature")?;
+    ws.set_name(ENGLISH.sheet)?;
     let bold = Format::new().set_bold();
     let date = Format::new().set_num_format("dd/mm/yyyy");
-    for (c, h) in HEADERS.iter().enumerate() {
+    for (c, h) in ENGLISH.headers.iter().enumerate() {
         ws.write_with_format(0, c as u16, *h, &bold)?;
     }
     for (i, a) in apps.iter().enumerate() {
@@ -221,7 +265,7 @@ pub fn export(path: &Path, apps: &[Application]) -> Result<()> {
         for (c, v) in texts {
             ws.write(r, c, v.as_str())?;
         }
-        ws.write(r, 8, a.status.sheet_value())?;
+        ws.write(r, 8, a.status.name())?;
         for (c, d) in [(7, a.sent_date), (10, a.next_action_date)] {
             if let Some(d) = d {
                 ws.write_with_format(r, c, &d, &date)?;
@@ -229,14 +273,8 @@ pub fn export(path: &Path, apps: &[Application]) -> Result<()> {
         }
     }
     // Status dropdown, as in the original tracker.
-    let values: Vec<&str> = Status::ALL.iter().map(Status::sheet_value).collect();
-    ws.add_data_validation(
-        1,
-        8,
-        1000,
-        8,
-        &DataValidation::new().allow_list_strings(&values)?,
-    )?;
+    let dropdown = DataValidation::new().allow_list_strings(&ENGLISH.statuses)?;
+    ws.add_data_validation(1, 8, 1000, 8, &dropdown)?;
     ws.set_freeze_panes(1, 0)?;
     ws.autofit();
     wb.save(path)

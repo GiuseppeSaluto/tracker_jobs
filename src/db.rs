@@ -12,10 +12,11 @@ pub const SCHEMA: &str = include_str!("../schema.sql");
 const COLUMNS: &str = "company, role, sector, role_type, location, channel, contact, sent_date, \
                        status, next_action, next_action_date, salary, cv, link, notes";
 
-// Statuses are stored as their spreadsheet value, so unknown ones survive untouched.
+// Statuses are stored by name; unknown ones survive untouched.
+
 impl ToSql for Status {
     fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
-        Ok(self.sheet_value().into())
+        Ok(self.name().into())
     }
 }
 

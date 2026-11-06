@@ -46,7 +46,8 @@ fn due_filters_and_sorts() {
 #[test]
 fn unknown_status_does_not_panic() {
     assert_eq!(Status::from("Boh"), Status::Unknown("Boh".into()));
-    assert_eq!(Status::from("In selezione"), Status::InSelection);
+    assert_eq!(Status::from("In selection"), Status::InSelection);
+    assert_eq!(Status::from("in selezione"), Status::InSelection); // Italian tracker
 }
 
 #[test]
@@ -64,12 +65,40 @@ fn loads_example_files() {
     for path in ["examples/sample.ods", "examples/sample.xlsx"] {
         let apps = load(path.as_ref()).unwrap();
         assert_eq!(apps.len(), 10, "{path}");
-        let lumen = apps.iter().find(|a| a.company == "Lumen Sistemi").unwrap();
+        let lumen = apps.iter().find(|a| a.company == "Lumen Systems").unwrap();
         assert_eq!(lumen.status, Status::Sent, "{path}");
         assert_eq!(lumen.next_action_date, Some(d("2026-11-20")), "{path}"); // date stored as text
         assert_eq!(lumen.salary, "40k", "{path}");
         assert_eq!(apps[0].sent_date, Some(d("2026-10-12")), "{path}"); // real date cell
     }
+}
+
+#[test]
+fn loads_italian_tracker() {
+    let path = std::env::temp_dir().join(format!("tracker_jobs_it_{}.xlsx", std::process::id()));
+    let mut wb = rust_xlsxwriter::Workbook::new();
+    let ws = wb.add_worksheet();
+    ws.set_name("Candidature").unwrap();
+    for (c, v) in ["Azienda", "Stato", "Data prossima azione", "Note"]
+        .iter()
+        .enumerate()
+    {
+        ws.write(0, c as u16, *v).unwrap();
+        ws.write(
+            1,
+            c as u16,
+            ["Rossi Srl", "Colloquio", "2026-11-09", "ok"][c],
+        )
+        .unwrap();
+    }
+    wb.save(&path).unwrap();
+    let apps = load(&path);
+    std::fs::remove_file(&path).unwrap();
+    let a = &apps.unwrap()[0];
+    assert_eq!(a.company, "Rossi Srl");
+    assert_eq!(a.status, Status::Interview);
+    assert_eq!(a.next_action_date, Some(d("2026-11-09")));
+    assert_eq!(a.notes, "ok");
 }
 
 #[test]

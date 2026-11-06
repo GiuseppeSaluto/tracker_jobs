@@ -7,7 +7,11 @@ terminal, see at a glance what to do today, and move data in and out of spreadsh
 Data lives in a local SQLite database (schema in [`schema.sql`](schema.sql)). Spreadsheets are for **import** (start from an existing
 tracker) and **export** (view or share it in LibreOffice Calc or Excel).
 
-<!-- screenshot: e.g. `vhs demo.tape` or `asciinema rec` -->
+![Dashboard: to do list, applications by status and the full table](docs/screenshots/dashboard.png)
+
+![Editing an application: every field, status picked with ←→](docs/screenshots/edit.png)
+
+*Screenshots use the made-up data in `examples/sample.ods`.*
 
 ## What it shows
 
@@ -49,25 +53,26 @@ Dates are typed as `dd/mm/yyyy` (or `yyyy-mm-dd`); the company is the only requi
 
 ## Spreadsheet format
 
-Import and export use the layout of the original (Italian) tracker: sheet `Candidature`,
-headers in row 1. On import, columns are looked up by name, so their order doesn't matter
+Import reads a sheet named `Applications` with headers in row 1; export writes the same layout,
+so an export can be imported again. Columns are looked up by name, so their order doesn't matter
 and extra columns are ignored.
 
-| Header | Field | | Header | Field |
-|---|---|---|---|---|
-| `Azienda` | Company (required) | | `Stato` | Status |
-| `Ruolo` | Role | | `Prossima azione` | Next action |
-| `Settore` | Sector | | `Data prossima azione` | Next action date |
-| `Tipo ruolo` | Role type | | `RAL / condizioni` | Salary / terms |
-| `Sede` | Location | | `CV usato` | CV used |
-| `Canale` | Channel | | `Link annuncio` | Job link |
-| `Referente` | Contact | | `Note` | Notes |
-| `Data invio` | Date sent | | | |
+`Company`, `Role`, `Sector`, `Role type`, `Location`, `Channel`, `Contact`, `Sent on`, `Status`,
+`Next action`, `Next action on`, `Salary / terms`, `CV used`, `Job link`, `Notes`.
 
-Status values: `Da inviare` (to send), `Inviata` (sent), `In selezione` (in selection),
-`Colloquio` (interview), `Offerta` (offer), `Rifiutata` (rejected), `Ritirata` (withdrawn),
-`Nessuna risposta` (no response). Unknown values are kept as they are. An application is
-*open* unless it's an offer, rejected or withdrawn.
+Only `Company` is required: rows without it are skipped. Status values: `To send`, `Sent`,
+`In selection`, `Interview`, `Offer`, `Rejected`, `Withdrawn`, `No response`; unknown values are
+kept as they are. An application is *open* unless it's an offer, rejected or withdrawn.
+
+Import also accepts the Italian tracker this project started from: sheet `Candidature`, headers
+`Azienda`, `Ruolo`, `Settore`, `Tipo ruolo`, `Sede`, `Canale`, `Referente`, `Data invio`, `Stato`,
+`Prossima azione`, `Data prossima azione`, `RAL / condizioni`, `CV usato`, `Link annuncio`, `Note`,
+and statuses `Da inviare`, `Inviata`, `In selezione`, `Colloquio`, `Offerta`, `Rifiutata`,
+`Ritirata`, `Nessuna risposta`.
+
+Each language is one table in `LANGUAGES` (`src/data.rs`): sheet name, headers and statuses.
+Adding a language means adding a table; nothing else changes. Every column and status is matched
+on its own, so a sheet may even mix languages.
 
 ## Privacy
 
@@ -85,8 +90,9 @@ src/
   ui.rs     # drawing
   tests.rs  # cargo test
 schema.sql  # SQLite schema, embedded in the binary
+docs/screenshots/  # README images (fake data)
 examples/
-  sample.ods   # fake data, same structure as the real tracker
+  sample.ods   # fake data in the import format
   sample.xlsx  # the same, in Excel format
 ```
 
