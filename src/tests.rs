@@ -1,7 +1,11 @@
 use calamine::Data;
 use chrono::NaiveDate;
+use crossterm::event::KeyCode;
+use rusqlite::Connection;
 
-use crate::data::{Application, Status, due, load, parse_date};
+use crate::data::{Application, Status, due, export, load, parse_date};
+use crate::form::Form;
+use crate::{App, db};
 
 fn d(s: &str) -> NaiveDate {
     s.parse().unwrap()
@@ -10,15 +14,16 @@ fn d(s: &str) -> NaiveDate {
 fn app(company: &str, status: Status, date: Option<NaiveDate>) -> Application {
     Application {
         company: company.into(),
-        role: String::new(),
-        sector: String::new(),
-        role_type: String::new(),
-        location: String::new(),
         status,
-        next_action: String::new(),
         next_action_date: date,
-        sent_date: None,
+        ..Default::default()
     }
+}
+
+fn memory_db() -> Connection {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(db::SCHEMA).unwrap();
+    conn
 }
 
 #[test]
@@ -62,6 +67,7 @@ fn loads_example_files() {
         let lumen = apps.iter().find(|a| a.company == "Lumen Sistemi").unwrap();
         assert_eq!(lumen.status, Status::Sent, "{path}");
         assert_eq!(lumen.next_action_date, Some(d("2026-11-20")), "{path}"); // date stored as text
+        assert_eq!(lumen.salary, "40k", "{path}");
         assert_eq!(apps[0].sent_date, Some(d("2026-10-12")), "{path}"); // real date cell
     }
 }
@@ -74,18 +80,71 @@ fn fit_adds_ellipsis() {
 
 #[test]
 fn visible_is_sorted_by_date() {
-    let app = crate::App {
-        path: Default::default(),
-        applications: vec![
-            app("no date", Status::Sent, None),
-            app("later", Status::Sent, Some(d("2026-11-10"))),
-            app("sooner", Status::Sent, Some(d("2026-11-03"))),
-        ],
-        selected: 0,
-        filter: crate::Filter::All,
-        popup: false,
-        error: None,
-    };
+    let conn = memory_db();
+    for a in [
+        app("no date", Status::Sent, None),
+        app("later", Status::Sent, Some(d("2026-11-10"))),
+        app("sooner", Status::Sent, Some(d("2026-11-03"))),
+    ] {
+        db::insert(&conn, &a).unwrap();
+    }
+    let app = App::new(Default::default(), conn).unwrap();
     let names: Vec<_> = app.visible().iter().map(|a| a.company.as_str()).collect();
     assert_eq!(names, ["sooner", "later", "no date"]);
+}
+
+#[test]
+fn db_crud() {
+    let conn = memory_db();
+    let mut a = app("Acme", Status::Unknown("Boh".into()), Some(d("2026-11-03")));
+    a.notes = "note".into();
+    let id = db::insert(&conn, &a).unwrap();
+    a.id = Some(id);
+    assert_eq!(db::all(&conn).unwrap(), [a.clone()]); // unknown status survives
+
+    a.status = Status::Interview;
+    a.next_action_date = None;
+    db::update(&conn, id, &a).unwrap();
+    assert_eq!(db::all(&conn).unwrap(), [a]);
+
+    db::delete(&conn, id).unwrap();
+    assert_eq!(db::count(&conn).unwrap(), 0);
+}
+
+#[test]
+fn import_then_export_round_trip() {
+    let sheet = load("examples/sample.ods".as_ref()).unwrap();
+    let mut conn = memory_db();
+    db::replace_all(&mut conn, &sheet).unwrap();
+    db::replace_all(&mut conn, &sheet).unwrap(); // replacing again doesn't duplicate
+    let stored = db::all(&conn).unwrap();
+    assert_eq!(stored.len(), sheet.len());
+
+    let out = std::env::temp_dir().join(format!("tracker_jobs_test_{}.xlsx", std::process::id()));
+    export(&out, &stored).unwrap();
+    let reloaded = load(&out);
+    std::fs::remove_file(&out).unwrap();
+    assert_eq!(reloaded.unwrap(), sheet); // every field, dates included
+}
+
+#[test]
+fn form_validates_and_round_trips() {
+    let mut a = app("Acme", Status::Sent, Some(d("2026-11-03")));
+    a.id = Some(7);
+    a.link = "https://example.com".into();
+    assert_eq!(Form::edit(&a).application(), Ok(a));
+
+    let mut form = Form::edit(&Application::default());
+    assert!(form.application().is_err()); // company is required
+    for c in "Acme".chars() {
+        form.key(KeyCode::Char(c));
+    }
+    form.focus = 7; // "Sent on"
+    for c in "31/02/2026".chars() {
+        form.key(KeyCode::Char(c));
+    }
+    assert!(form.application().unwrap_err().contains("Sent on"));
+    form.focus = crate::form::STATUS;
+    form.key(KeyCode::Right);
+    assert_eq!(form.status, Status::Sent);
 }

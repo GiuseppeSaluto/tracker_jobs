@@ -9,6 +9,12 @@
 !examples/*.xlsx
 .~lock.*#
 
+# Databases hold the same personal data.
+*.db
+*.db.bak
+*.sqlite
+*.sqlite3
+
 # Personal working notes
 spec.md
 dev.md
